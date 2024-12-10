@@ -1,42 +1,69 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
+const express = require("express");
+const axios = require("axios");
+const cheerio = require("cheerio");
 
-module.exports = async (req, res) => {
-  const url = 'https://www.hirunews.lk/local-news.php?pageID=1';
-  
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Hiru News URL
+const BASE_URL = "https://www.hirunews.lk/local-news.php?pageID=1";
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  next();
+});
+
+// Root Route
+app.get("/", (req, res) => {
+  res.send("Welcome to the Hiru News API! Use /news to fetch the latest local news.");
+});
+
+// Scraping Logic
+async function fetchNews() {
   try {
-    const response = await axios.get(url);
-    const $ = cheerio.load(response.data);
+    const response = await axios.get(BASE_URL);
+    if (response.status === 200) {
+      const $ = cheerio.load(response.data);
+      let newsArray = [];
 
-    const newsItems = [];
+      $(".news-holder").each((i, element) => {
+        const title = $(element).find("h2").text().trim();
+        const url = "https://www.hirunews.lk" + $(element).find("a").attr("href");
+        const image = $(element).find("img").attr("src");
+        const date = $(element).find(".date").text().trim();
 
-    // Scraping each news item
-    $('.lts-cntp').each((i, el) => {
-      const title = $(el).find('.rp-hdln').text().trim();
-      const description = $(el).find('p').text().trim();
-      const newsUrl = $(el).find('a').attr('href');
-      const imageUrl = $(el).find('img').attr('src');
-
-      if (title && newsUrl) {
-        newsItems.push({
-          title: title,
-          description: description,
-          image: imageUrl ? `https://www.hirunews.lk${imageUrl}` : null,
-          news_url: `https://www.hirunews.lk${newsUrl}`,
-          source: "Hiru News",
+        newsArray.push({
+          title,
+          url,
+          image,
+          date,
           powered_by: "DIZER",
         });
-      }
-    });
+      });
 
-    // Returning scraped news
-    if (newsItems.length > 0) {
-      res.status(200).json({ status: 'success', data: newsItems });
-    } else {
-      res.status(404).json({ status: 'error', message: 'No news articles found.' });
+      return newsArray;
     }
   } catch (error) {
-    console.error('Error:', error.message);
-    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+    console.error("Error fetching Hiru News:", error.message);
+    return [];
   }
-};
+}
+
+// News Route
+app.get("/news", async (req, res) => {
+  try {
+    const news = await fetchNews();
+    if (news.length > 0) {
+      res.json(news);
+    } else {
+      res.status(404).json({ error: "No news articles found." });
+    }
+  } catch (error) {
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Start the Server
+app.listen(PORT, () => {
+  console.log(`Hiru News API is running on port ${PORT}`);
+});
