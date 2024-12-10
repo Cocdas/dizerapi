@@ -98,6 +98,7 @@
     "graceful-fs": "^4.2.11",
     "has": "^1.0.3",
     "has-flag": "^4.0.0",
+    "hirunews-scraper":"^3.0.0",
     "has-proto": "^1.0.1",
     "has-symbols": "^1.0.3",
     "htmlparser2": "^8.0.2",
