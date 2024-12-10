@@ -1,31 +1,52 @@
-const express = require('express');
-const hirunews = require('hirunews-scraper');
+import axios from "axios";
+import cheerio from "cheerio";
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  next();
-});
-
-// Root Route
-app.get('/', (req, res) => {
-  res.send('Welcome to the Hiru News API powered by hirunews-scraper!');
-});
-
-// News Route
-app.get('/news', async (req, res) => {
+export const scrapeHiruNews = async (req, res) => {
   try {
-    const news = await hirunews.getLatestNews(); // Assuming this is a method in the package
-    res.json(news);
+    const pageNumber = parseInt(req.params.page);
+
+    const response = await axios.get(
+      `https://www.hirunews.lk/local-news.php?pageID=${pageNumber}`
+    );
+
+    const $ = cheerio.load(response.data);
+
+    const data = $(".trending-section .row .column:nth-child(3)")
+      .map((index, element) => ({
+        _id: index + 1,
+        title: $(element)
+          .find(".all-section-tittle a:nth-child(2)")
+          .text()
+          .trim(),
+        date: $(element).find(".middle-tittle-time").text().trim(),
+        link: $(element)
+          .find(".all-section-tittle a:nth-child(2)")
+          .attr("href"),
+      }))
+      .get();
+
+    const images = $(".trending-section .row .column:nth-child(1)")
+      .map((index, element) => ({
+        image: $(element).find(".sc-image img").attr("src"),
+      }))
+      .get();
+
+    const combined = data
+      .map((title, i) => ({
+        ...title,
+        ...images[i],
+      }))
+      .map(({ _id, title, date, link, image }) => ({
+        _id,
+        title,
+        date,
+        link,
+        image,
+      }));
+
+    res.json(combined);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error fetching news' });
+    res.send("Something went wrong!");
   }
-});
-
-// Start Server
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+};
